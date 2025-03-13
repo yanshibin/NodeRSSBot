@@ -61,7 +61,7 @@ const send = async (
                 toSend = ejs.render(tpl, { i18n: i18n[lang] });
                 await bot.telegram.sendMessage(userId, toSend, {
                     parse_mode: 'HTML',
-                    disable_web_page_preview: true
+                    link_preview_options: { is_disabled: true }
                 });
             } catch (e) {
                 handlerSendError(e, userId);
@@ -73,14 +73,16 @@ const send = async (
             const userId = subscribe.user_id;
             let text = `<b>${sanitize(feed.feed_title)}</b>`;
             feedItems.forEach(function (item) {
-                text += `\n<a href="${item.link.trim()}">${sanitize(
-                    item.title
-                )}</a>`;
+                text += `\n<a href="${item.link.trim()}">${
+                    sanitize(item.title) || item.link.trim()
+                }</a>`;
             });
             try {
                 await bot.telegram.sendMessage(userId, text, {
                     parse_mode: 'HTML',
-                    disable_web_page_preview: true
+                    link_preview_options: {
+                        is_disabled: true
+                    }
                 });
             } catch (e) {
                 const resend = await handlerSendError(e, userId);
@@ -90,7 +92,9 @@ const send = async (
                         text,
                         {
                             parse_mode: 'HTML',
-                            disable_web_page_preview: true
+                            link_preview_options: {
+                                is_disabled: true
+                            }
                         }
                     );
                 }
