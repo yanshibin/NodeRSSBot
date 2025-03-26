@@ -40,8 +40,8 @@ export async function unsub(ctx: MContext, next: TNextFn): Promise<void> {
         ctx.replyWithMarkdown(
             `
         ${i18n[lang]['UNSUB_SUCCESS']} [${feed.value.feed_title}](${encodeUrl(
-                ctx.state.feedUrl
-            )})`,
+            ctx.state.feedUrl
+        )})`,
             {
                 reply_markup: {
                     remove_keyboard: true
@@ -116,7 +116,7 @@ export async function unsubAll(ctx: MContext, next: TNextFn): Promise<void> {
         i18n[lang]['UNSUB_ALL_SUCCESS'],
         {
             parse_mode: 'HTML',
-            disable_web_page_preview: true
+            link_preview_options: { is_disabled: true }
         }
     );
     await next();
