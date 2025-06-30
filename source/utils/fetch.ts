@@ -1,9 +1,7 @@
-import * as path from 'path';
 import got from '../utils/got';
-import { DiskFastq } from 'disk-fastq';
+import fastQueue from 'fastq';
 import { RecurrenceRule, scheduleJob } from 'node-schedule';
 import * as Sentry from '@sentry/node';
-import { RewriteFrames } from '@sentry/integrations';
 
 import logger, { logHttpError } from './logger';
 import { findFeed, getNewItems } from './feed';
@@ -144,49 +142,47 @@ async function fetch(feedModal: Feed): Promise<Option<any[]>> {
     return none;
 }
 
-const queue = new DiskFastq<never, Feed>(
-    async (eachFeed: Feed, cb) => {
-        const oldHashList = JSON.parse(eachFeed.recent_hash_list);
-        let fetchedItems: Option<FeedItem[]>;
-        try {
-            fetchedItems = await fetch(eachFeed);
-            if (isNone(fetchedItems)) {
-                cb(undefined, undefined);
-            } else {
-                const [sendItems, newHashList] = await getNewItems(
-                    oldHashList,
-                    fetchedItems.value
-                );
-                if (sendItems.length > 0) {
-                    await updateHashList(eachFeed.feed_id, newHashList);
-                }
-                cb(null, sendItems);
+const queue = fastQueue(async (eachFeed: Feed, cb) => {
+    const oldHashList = JSON.parse(eachFeed.recent_hash_list);
+    let fetchedItems: Option<FeedItem[]>;
+    try {
+        fetchedItems = await fetch(eachFeed);
+        if (isNone(fetchedItems)) {
+            cb(undefined, undefined);
+        } else {
+            const [sendItems, newHashList] = await getNewItems(
+                oldHashList,
+                fetchedItems.value
+            );
+            if (sendItems.length > 0) {
+                await updateHashList(eachFeed.feed_id, newHashList);
             }
-        } catch (e) {
-            cb(e, undefined);
+            cb(null, sendItems);
         }
-    },
-    concurrency,
-    { filePath: path.join(config['PKG_ROOT'], 'data', 'job-queue') },
-    (err, sendItems, feed) => {
-        if (sendItems && !err) {
-            process.send &&
-                process.send({
-                    success: true,
-                    sendItems: sendItems.slice(0, item_num),
-                    feed
-                } as SuccessMessage);
-        }
+    } catch (e) {
+        cb(e, undefined);
     }
-);
+}, concurrency);
 
 const fetchAll = async (): Promise<void> => {
     process.send && process.send('start fetching');
     const allFeeds = await getAllFeeds(config.strict_ttl);
-    if (queue.length > allFeeds.length * 3) {
-        queue.reset();
-    }
-    allFeeds.forEach((feed) => queue.push(feed));
+    const inQueueSet = new Set<number>();
+    allFeeds.forEach((feed) => {
+        if (!inQueueSet.has(feed.feed_id)) {
+            queue.push(feed, (err, sendItems) => {
+                inQueueSet.delete(feed.feed_id);
+                if (sendItems && !err) {
+                    process.send &&
+                        process.send({
+                            success: true,
+                            sendItems: sendItems.slice(0, item_num),
+                            feed
+                        } as SuccessMessage);
+                }
+            });
+        }
+    });
 };
 
 function run() {
@@ -219,7 +215,7 @@ if (config.sentry_dsn) {
     Sentry.init({
         dsn: config.sentry_dsn,
         integrations: [
-            new RewriteFrames({
+            Sentry.rewriteFramesIntegration({
                 root: config['PKG_ROOT']
             })
         ],
@@ -254,9 +250,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 process.on('SIGUSR2', () => {
     logger.info(
-        `worker queue length: ${queue.fastq.length()}, ${
-            queue.queue.remainCount
-        } => ${queue.length} Running: ${(queue.fastq as any).running()}`
+        `worker queue length: ${queue.length()},  Running: ${queue.running()}`
     );
 });
 process.on('disconnect', () => {
