@@ -1,8 +1,9 @@
 /* eslint @typescript-eslint/explicit-module-boundary-types: 0 */
+/* eslint @typescript-eslint/no-require-imports: 0 */
 try {
     const pg = require('pg');
     pg.types.setTypeParser(20, 'text', parseInt);
-} catch (err) {
+} catch (_err) {
     logger.info('There is no pg');
 }
 import { config } from './config';
@@ -34,8 +35,10 @@ const knexConfig: Knex.Config = {
         directory: join(__dirname, 'migrations')
     },
     pool: {
-        min: 1,
-        max: client === SQLITE_CLIENT ? 4 : 8,
+        // try https://stackoverflow.com/questions/78221948/knex-timeout-what-is-the-best-approach-to-fix-it
+        min: 0,
+        max: client === SQLITE_CLIENT ? 4 : 30,
+        idleTimeoutMillis: 20 * 100,
         acquireTimeoutMillis: 1000 * 5 * 60, // timeout 5 minutes
         afterCreate: (conn: any, done: (err: Error, conn: any) => void) => {
             if (client === SQLITE_CLIENT) {

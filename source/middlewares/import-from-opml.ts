@@ -17,7 +17,6 @@ const getOutlines = async function (data: string): Promise<Outline[]> {
     ]);
 };
 
-// eslint-disable-line
 export const _getOutlines = getOutlines;
 export default async (ctx: MContext, next: TNextFn): Promise<void> => {
     const { fileLink, lang } = ctx.state;
@@ -54,7 +53,7 @@ export default async (ctx: MContext, next: TNextFn): Promise<void> => {
         } else if (e instanceof errors.ControllableError) {
             throw e;
         } else {
-            throw errors.newCtrlErr('OPML_PARSE_ERRO', e);
+            throw errors.newCtrlErr('OPML_PARSE_ERROR', e);
         }
     }
     await next();
